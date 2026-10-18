@@ -1,0 +1,2191 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, viewport-fit=cover">
+    <title>SportLens - Suivi Accréditations & Matchs</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Supabase JS SDK v2 -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { christmas: ['"Mountains of Christmas"', 'cursive', 'Georgia', 'serif'] },
+                    colors: {
+                        brand: {
+                            50: '#fffbeb',
+                            100: '#fef3c7',
+                            500: '#f59e0b',
+                            600: '#d97706',
+                            700: '#b45309',
+                            900: '#78350f',
+                        },
+                        accent: {
+                            500: '#f59e0b',
+                            600: '#d97706',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.2s ease, color 0.2s ease;
+        }
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.05);
+        }
+        .dark ::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #9ca3af;
+            border-radius: 4px;
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background: #374151;
+        }
+    
+        /* ===== Thème Noël ===== */
+        html .bg-brand-600 { background-image: linear-gradient(90deg, #dc2626, #d97706); }
+        html .hover\:bg-brand-500:hover { filter: brightness(1.12); }
+        header h1, main h2, #auth-overlay h2, [id$="-modal"] > div > div:first-child > h3 { font-family: 'Mountains of Christmas', cursive, Georgia, serif; letter-spacing: .02em; }
+        header h1 { font-size: 1.5rem; line-height: 1.1; color: #d97706; }
+        .dark header h1 { color: #fbbf24; }
+        main h2 { font-size: 1.6rem; line-height: 1.1; }
+        header { padding-top: env(safe-area-inset-top); }
+        [id$="-modal"] > div, #auth-overlay > div { position: relative; }
+        [id$="-modal"] > div::before, #auth-overlay > div::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 6px; background: linear-gradient(90deg, #dc2626, #f59e0b, #dc2626); z-index: 1; }
+        ::-webkit-scrollbar-thumb, .dark ::-webkit-scrollbar-thumb { background: #d97706 !important; }
+        svg.lucide { flex-shrink: 0; }
+        img, svg, video, canvas { max-width: 100%; }
+        .snowflake { color: rgba(255,255,255,.85); font-family: Arial, sans-serif; text-shadow: 0 0 6px rgba(255,255,255,.6); position: absolute; top: -10%; z-index: 1; user-select: none; pointer-events: none; animation: fall linear infinite; }
+        html:not(.dark) .snowflake { color: rgba(185,28,28,.45); text-shadow: 0 0 4px rgba(217,119,6,.3); }
+        @keyframes fall { 0% { top: -10%; transform: translateX(0) rotate(0deg); } 50% { transform: translateX(15px) rotate(180deg); } 100% { top: 105vh; transform: translateX(-15px) rotate(360deg); } }
+        html:not(.dark) .text-amber-400, html:not(.dark) .text-amber-500, html:not(.dark) .text-amber-600 { color: #b45309; }
+        html:not(.dark) .text-emerald-400 { color: #047857; }
+        html:not(.dark) .text-blue-400 { color: #1d4ed8; }
+        html:not(.dark) .text-rose-400 { color: #be123c; }
+        html:not(.dark) .text-slate-400 { color: #64748b; }
+
+        /* ===== Boutons & cartes match ===== */
+        .gbtn { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; height: 2.25rem; padding: 0 1rem; border-radius: .75rem; font-size: .75rem; font-weight: 600; white-space: nowrap; transition: filter .15s; }
+        .btn-primary { background-image: linear-gradient(90deg, #dc2626, #d97706); color: #fff; box-shadow: 0 2px 8px rgba(217,119,6,.35); }
+        .btn-primary:hover { filter: brightness(1.12); }
+        .gsel { height: 2.25rem; border-radius: .75rem; padding: 0 .6rem; font-size: .75rem; font-weight: 600; border: 1px solid rgba(148,163,184,.4); background: transparent; color: inherit; }
+        .dark .gsel option { background: #1e293b; color: #e2e8f0; }
+        .gcard { position: relative; border-radius: 1.5rem; padding: 1rem 1rem 1rem 1.1rem; border: 1px solid rgba(148,163,184,.25); border-left-width: 5px; box-shadow: 0 1px 3px rgba(0,0,0,.12); transition: box-shadow .15s, transform .15s; }
+        .gcard:hover { box-shadow: 0 8px 20px rgba(0,0,0,.18); transform: translateY(-1px); }
+        .gcard--todo { border-left-color: #f59e0b; } .gcard--pending { border-left-color: #3b82f6; }
+        .gcard--approved { border-left-color: #10b981; } .gcard--rejected { border-left-color: #f43f5e; }
+        .gcard.gcard-open { z-index: 60; }
+        .gcard-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: .6rem .75rem; }
+        .gcard-id { display: flex; align-items: center; gap: .75rem; min-width: 0; flex: 1 1 12rem; }
+        .gcard-title { font-weight: 700; font-size: 1.05rem; line-height: 1.3; overflow-wrap: anywhere; }
+        .gcard-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .75rem; margin-top: .6rem; font-size: .75rem; }
+        .gcard-line { display: flex; align-items: flex-start; gap: .5rem; margin-top: .45rem; font-size: .75rem; min-width: 0; overflow-wrap: anywhere; }
+        .gcard-line svg { margin-top: 1px; }
+        .gcard-foot { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: .9rem; }
+        .gcard-foot .gbtn { flex: 1 1 auto; } .gcard-foot .gsel { flex: 1 1 9rem; }
+        .gmenu { position: relative; margin-left: auto; flex-shrink: 0; }
+        .gmenu > summary { list-style: none; cursor: pointer; width: 2.25rem; height: 2.25rem; display: inline-flex; align-items: center; justify-content: center; border-radius: .75rem; color: #94a3b8; user-select: none; }
+        .gmenu > summary::-webkit-details-marker { display: none; }
+        .gmenu > summary:hover, .gmenu[open] > summary { background: rgba(148,163,184,.2); color: #f59e0b; }
+        .gmenu-pop { position: absolute; right: 0; top: calc(100% + 4px); z-index: 40; min-width: 12rem; padding: .35rem; border-radius: .9rem; background: #fff; border: 1px solid #e2e8f0; box-shadow: 0 12px 28px rgba(0,0,0,.25); }
+        .dark .gmenu-pop { background: #1e293b; border-color: #334155; }
+        .gmenu.gmenu-up .gmenu-pop { top: auto; bottom: calc(100% + 4px); }
+        .gmenu-pop button { display: flex; align-items: center; gap: .6rem; width: 100%; text-align: left; padding: .6rem .7rem; border-radius: .6rem; font-size: .8rem; font-weight: 500; color: #334155; }
+        .dark .gmenu-pop button { color: #e2e8f0; }
+        .gmenu-pop button:hover { background: rgba(148,163,184,.18); }
+        .gmenu-pop button.is-danger, .gmenu-pop button.is-danger svg { color: #ef4444; }
+
+        /* ===== Badge de statut : même largeur partout ===== */
+        .sbadge { min-width: 8.75rem; white-space: nowrap; }
+
+        /* ===== Tableau synthétique : colonnes fixes ===== */
+        .tbl { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: .75rem; }
+        .tbl th { padding: .7rem .9rem; text-align: left; font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; color: #94a3b8; background: rgba(148,163,184,.1); border-bottom: 1px solid rgba(148,163,184,.25); }
+        .tbl th.c { text-align: center; } .tbl th.r { text-align: right; }
+        .tbl td { padding: .75rem .9rem; vertical-align: middle; border-bottom: 1px solid rgba(148,163,184,.18); }
+        .tbl tbody tr:last-child td { border-bottom: 0; }
+        .tbl tbody tr:hover { background: rgba(148,163,184,.08); }
+        .cell-date { display: flex; flex-direction: column; gap: .1rem; white-space: nowrap; }
+        .cell-match .t { font-weight: 700; font-size: .85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cell-match .s { color: #94a3b8; font-size: .68rem; margin-top: .1rem; }
+        .cell-venue { display: flex; flex-direction: column; align-items: flex-start; gap: .25rem; min-width: 0; }
+        .cell-venue .v { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .loc { display: inline-block; padding: .1rem .5rem; border-radius: .4rem; font-size: .65rem; font-weight: 600; }
+        .loc-home { background: rgba(99,102,241,.12); color: #6366f1; } .loc-away { background: rgba(168,85,247,.12); color: #a855f7; }
+        .cell-status { display: flex; justify-content: center; }
+        .cell-actions { display: flex; justify-content: flex-end; gap: .25rem; }
+        .ibtn { width: 2.25rem; height: 2.25rem; display: inline-flex; align-items: center; justify-content: center; border-radius: .75rem; flex-shrink: 0; color: #94a3b8; transition: background .15s, color .15s; }
+        .ibtn:hover { background: rgba(148,163,184,.2); color: #f59e0b; }
+        .ibtn.mail { color: #d97706; } .ibtn.danger:hover { background: rgba(239,68,68,.12); color: #ef4444; }
+
+        /* ===== Mobile ===== */
+        button, a, summary, label { touch-action: manipulation; }
+        @media (max-width: 639px) {
+            input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea { font-size: 16px !important; }
+            #toast-notification { left: 1rem; right: 1rem; }
+            .sbadge { min-width: 7.5rem; }
+            .gcard-foot .gbtn { flex: 1 1 100%; }
+        }
+        @media (min-width: 640px) { .gcard-foot .gbtn, .gcard-foot .gsel { flex: 0 0 auto; } }
+        @media (max-width: 767px) {
+            aside nav { display: grid !important; grid-template-columns: repeat(3, 1fr); gap: .25rem; }
+            aside nav button { flex-direction: column; justify-content: center; text-align: center; gap: .3rem; padding: .55rem .2rem; font-size: 11px; }
+            aside nav button > div { flex-direction: column; gap: .2rem; }
+            aside nav button > div > * { margin-left: 0 !important; }
+            .tbl, .tbl tbody, .tbl tr, .tbl td { display: block; width: 100%; }
+            .tbl thead, .tbl colgroup { display: none; }
+            .tbl tr { padding: .5rem 0; border-bottom: 1px solid rgba(148,163,184,.3); }
+            .tbl tbody tr:last-child { border-bottom: 0; }
+            .tbl td { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border: 0; padding: .3rem 1rem; }
+            .tbl td::before { content: attr(data-label); width: 4.5rem; flex-shrink: 0; font-size: .65rem; text-transform: uppercase; letter-spacing: .05em; color: #94a3b8; }
+            .tbl td > div { margin-left: auto; min-width: 0; align-items: flex-end; text-align: right; }
+            .cell-status, .cell-actions { justify-content: flex-end; }
+            .cell-match .t { white-space: normal; }
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Mountains+of+Christmas:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gradient-to-br dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 from-amber-50/80 via-orange-50/40 to-amber-100/70 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col font-sans antialiased overflow-x-hidden relative selection:bg-amber-600 selection:text-white">
+    <div id="snow-container" class="fixed inset-0 overflow-hidden pointer-events-none z-0"></div>
+
+    <!-- Navigation Bar -->
+    <header class="border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/80 backdrop-blur sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- Logo & Title -->
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 flex items-center justify-center bg-gradient-to-tr from-red-600 to-amber-500 rounded-full text-white shadow-md">
+                        <i data-lucide="camera" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            SportLens <span class="text-xs px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-500/30">Pro</span>
+                        </h1>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Suivi Accréditations & Planning Matchs</p>
+                    </div>
+                </div>
+
+                <!-- Global Actions, Theme & Settings -->
+                <div class="flex items-center space-x-2">
+                    <!-- Theme Toggle Button -->
+                    <button onclick="toggleTheme()" class="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition" title="Basculer Mode Clair / Sombre" id="theme-toggle-btn">
+                        <i data-lucide="sun" class="w-5 h-5 hidden dark:block text-amber-400"></i>
+                        <i data-lucide="moon" class="w-5 h-5 block dark:hidden text-slate-700"></i>
+                    </button>
+
+                    <button onclick="openNewMatchModal()" class="flex items-center space-x-2 bg-brand-600 hover:bg-brand-500 text-white px-3.5 py-2 rounded-xl text-sm font-semibold transition shadow-lg shadow-brand-600/20 active:scale-95">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                        <span class="hidden sm:inline">Nouveau Match</span>
+                    </button>
+                    
+                    <button onclick="openSettingsModal()" class="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-white rounded-xl transition" title="Paramètres, Modèles Mail & Sauvegarde">
+                        <i data-lucide="settings" class="w-5 h-5"></i>
+                    </button>
+
+                    <button onclick="logout()" class="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-rose-500 rounded-xl transition" title="Se déconnecter">
+                        <i data-lucide="log-out" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <div class="relative z-10 flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col md:flex-row gap-6">
+
+        <!-- Sidebar Navigation -->
+        <aside class="w-full md:w-64 flex-shrink-0 space-y-6">
+            <!-- Navigation Tabs -->
+            <nav class="bg-white/90 dark:bg-slate-900/80 shadow-xl border border-slate-200 dark:border-slate-800 rounded-3xl p-2 space-y-1 shadow-sm">
+                <button onclick="switchTab('dashboard')" id="nav-dashboard" class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition bg-brand-600 text-white shadow-lg shadow-brand-600/20">
+                    <div class="flex items-center space-x-3">
+                        <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+                        <span>Cette Semaine</span>
+                    </div>
+                    <span id="badge-week-count" class="text-xs px-2 py-0.5 rounded-full bg-white/20 text-white font-semibold">0</span>
+                </button>
+
+                <button onclick="switchTab('matches')" id="nav-matches" class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60">
+                    <div class="flex items-center space-x-3">
+                        <i data-lucide="calendar" class="w-4 h-4"></i>
+                        <span>Tous les Matchs</span>
+                    </div>
+                    <span id="badge-all-count" class="text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold">0</span>
+                </button>
+
+                <button onclick="switchTab('teams')" id="nav-teams" class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60">
+                    <div class="flex items-center space-x-3">
+                        <i data-lucide="shield" class="w-4 h-4"></i>
+                        <span>Équipes Suivies</span>
+                    </div>
+                    <span id="badge-teams-count" class="text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold">0</span>
+                </button>
+            </nav>
+
+            <!-- Quick Stats Widget -->
+            <div class="bg-white/90 dark:bg-slate-900/80 shadow-xl border border-slate-200 dark:border-slate-800 rounded-3xl p-4 space-y-3 shadow-sm">
+                <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                    <span>Accréditations</span>
+                    <i data-lucide="pie-chart" class="w-4 h-4 text-slate-400"></i>
+                </h3>
+                <div class="space-y-2 text-xs">
+                    <div class="flex justify-between items-center text-slate-600 dark:text-slate-300">
+                        <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-amber-500 mr-2"></span>À faire</span>
+                        <span id="stat-todo" class="font-bold text-slate-900 dark:text-slate-100">0</span>
+                    </div>
+                    <div class="flex justify-between items-center text-slate-600 dark:text-slate-300">
+                        <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-blue-500 mr-2"></span>En attente</span>
+                        <span id="stat-pending" class="font-bold text-slate-900 dark:text-slate-100">0</span>
+                    </div>
+                    <div class="flex justify-between items-center text-slate-600 dark:text-slate-300">
+                        <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-emerald-500 mr-2"></span>Validées</span>
+                        <span id="stat-approved" class="font-bold text-slate-900 dark:text-slate-100">0</span>
+                    </div>
+                    <div class="flex justify-between items-center text-slate-600 dark:text-slate-300">
+                        <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-rose-500 mr-2"></span>Refusées</span>
+                        <span id="stat-rejected" class="font-bold text-slate-900 dark:text-slate-100">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Photographer Profile Summary Widget -->
+            <div class="hidden md:block bg-white/60 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-4 text-xs text-slate-500 dark:text-slate-400 space-y-2 shadow-sm">
+                <div class="flex items-center justify-between text-slate-700 dark:text-slate-300 font-medium">
+                    <span class="flex items-center gap-1.5"><i data-lucide="user" class="w-3.5 h-3.5 text-brand-500"></i> Profil Photo</span>
+                    <button onclick="openSettingsModal()" class="text-brand-600 dark:text-brand-400 hover:underline text-[11px]">Modifier</button>
+                </div>
+                <p id="profile-summary-name" class="font-semibold text-slate-900 dark:text-slate-200">Non configuré</p>
+                <p id="profile-summary-media" class="truncate text-slate-500 dark:text-slate-400">Presse / Indépendant</p>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 min-w-0 space-y-6">
+
+            <!-- TAB 1: WEEK DASHBOARD VIEW -->
+            <section id="tab-dashboard-view" class="space-y-6">
+                <!-- Header Banner -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white border border-slate-800 p-5 rounded-3xl shadow-md">
+                    <div>
+                        <h2 class="text-xl font-bold flex items-center gap-2">
+                            <i data-lucide="zap" class="w-5 h-5 text-amber-400"></i> Matchs de la Semaine
+                        </h2>
+                        <p class="text-xs text-slate-300 mt-1">
+                            Aperçu prioritaire des matchs prévus dans les 7 prochains jours.
+                        </p>
+                    </div>
+                    <button onclick="openNewMatchModal()" class="flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 px-3.5 py-2 rounded-xl text-xs font-semibold transition">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        <span>Ajouter un match</span>
+                    </button>
+                </div>
+
+                <!-- Urgent Tasks Alert Box -->
+                <div id="urgent-tasks-banner" class="hidden bg-amber-500/10 border border-amber-500/30 rounded-3xl p-4 text-amber-700 dark:text-amber-300 text-xs flex items-center justify-between shadow-sm">
+                    <div class="flex items-center space-x-3">
+                        <i data-lucide="alert-circle" class="w-5 h-5 text-amber-500 flex-shrink-0"></i>
+                        <div>
+                            <span class="font-bold" id="urgent-count-text">0 accréditations</span> à demander pour les matchs de cette semaine !
+                        </div>
+                    </div>
+                    <button onclick="filterByAccred('todo')" class="underline font-semibold hover:text-amber-800 dark:hover:text-amber-200 text-xs">Voir les matchs</button>
+                </div>
+
+                <!-- Weekly Cards Container -->
+                <div id="weekly-matches-list" class="grid grid-cols-1 gap-4">
+                    <!-- Dynamic Matches Cards render here -->
+                </div>
+            </section>
+
+            <!-- TAB 2: ALL MATCHES / CALENDAR VIEW -->
+            <section id="tab-matches-view" class="space-y-6 hidden">
+                <!-- Filters & Controls Bar -->
+                <div class="bg-white/90 dark:bg-slate-900/80 shadow-xl border border-slate-200 dark:border-slate-800 p-4 rounded-3xl space-y-3 shadow-sm">
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <!-- Search Box -->
+                        <div class="relative flex-1">
+                            <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-3 text-slate-400"></i>
+                            <input type="text" id="filter-search" oninput="applyFilters()" placeholder="Rechercher club, adversaire, stade..." class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-brand-500">
+                        </div>
+                        
+                        <!-- Status Filter -->
+                        <select id="filter-status" onchange="applyFilters()" class="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-700 dark:text-slate-300 focus:outline-none focus:border-brand-500">
+                            <option value="all">Tous les statuts d'accréditations</option>
+                            <option value="todo">🔴 À faire (Non demandée)</option>
+                            <option value="pending">🟡 Demande envoyée</option>
+                            <option value="approved">🟢 Validée</option>
+                            <option value="rejected">⚪ Refusée</option>
+                        </select>
+
+                        <!-- Team Filter -->
+                        <select id="filter-team" onchange="applyFilters()" class="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-700 dark:text-slate-300 focus:outline-none focus:border-brand-500">
+                            <option value="all">Toutes les équipes</option>
+                        </select>
+
+                        <!-- Location Filter -->
+                        <select id="filter-location" onchange="applyFilters()" class="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-700 dark:text-slate-300 focus:outline-none focus:border-brand-500">
+                            <option value="all">Lieu (Tous)</option>
+                            <option value="home">Domicile 🏠</option>
+                            <option value="away">Extérieur ✈️</option>
+                        </select>
+                    </div>
+
+                    <!-- View Mode Toggle (Detailed vs Compact / Synthetic) -->
+                    <div class="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                        <span class="text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1.5">
+                            <i data-lucide="layout-grid" class="w-4 h-4 text-brand-500"></i> Mode d'affichage :
+                        </span>
+                        <div class="inline-flex bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
+                            <button onclick="setMatchesViewMode('detailed')" id="btn-view-detailed" class="px-3 py-1.5 rounded-lg font-semibold transition bg-brand-600 text-white shadow-sm">
+                                Détaillé (Cartes)
+                            </button>
+                            <button onclick="setMatchesViewMode('compact')" id="btn-view-compact" class="px-3 py-1.5 rounded-lg font-semibold transition text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
+                                Synthétique (Tableau)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Matches Table / List Container -->
+                <div id="all-matches-list" class="space-y-6">
+                    <!-- Matches render here -->
+                </div>
+            </section>
+
+            <!-- TAB 3: TEAMS MANAGEMENT VIEW -->
+            <section id="tab-teams-view" class="space-y-6 hidden">
+                <div class="flex items-center justify-between bg-white/90 dark:bg-slate-900/80 shadow-xl border border-slate-200 dark:border-slate-800 p-5 rounded-3xl shadow-sm">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-900 dark:text-white">Équipes Suivies</h2>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Gérez vos clubs, logos, terrains enregistrés et contacts presse.</p>
+                    </div>
+                    <button onclick="openTeamModal()" class="flex items-center space-x-2 bg-brand-600 hover:bg-brand-500 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition shadow-lg shadow-brand-600/20">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        <span>Ajouter une équipe</span>
+                    </button>
+                </div>
+
+                <div id="teams-grid-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Teams cards render here -->
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- MATCH MODAL (Add / Edit) -->
+    <div id="match-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-xl overflow-y-auto max-h-[92vh] shadow-2xl transform transition-all text-slate-900 dark:text-slate-100">
+            <div class="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800">
+                <h3 class="font-bold flex items-center gap-2" id="match-modal-title">
+                    <i data-lucide="calendar-plus" class="w-5 h-5 text-brand-500"></i> Ajouter un Match
+                </h3>
+                <button onclick="closeMatchModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            
+            <form id="match-form" onsubmit="handleMatchSubmit(event)" class="p-5 space-y-4 text-xs">
+                <input type="hidden" id="match-id">
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <!-- Équipe suivie -->
+                    <div>
+                        <label class="block text-slate-600 dark:text-slate-400 mb-1 font-medium">Équipe suivie *</label>
+                        <select id="match-my-team" required onchange="onMatchTeamChange()" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 focus:border-brand-500 focus:outline-none">
+                            <option value="">Sélectionner une équipe...</option>
+                        </select>
+                    </div>
+
+                    <!-- Adversaire -->
+                    <div>
+                        <label class="block text-slate-600 dark:text-slate-400 mb-1 font-medium">Adversaire *</label>
+                        <input type="text" id="match-opponent" required placeholder="ex: Stade Toulousain" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 focus:border-brand-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <!-- Date -->
+                    <div>
+                        <label class="block text-slate-600 dark:text-slate-400 mb-1 font-medium">Date *</label>
+                        <input type="date" id="match-date" required class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 focus:border-brand-500 focus:outline-none">
+                    </div>
+
+                    <!-- Horaire -->
+                    <div>
+                        <label class="block text-slate-600 dark:text-slate-400 mb-1 font-medium">Horaire *</label>
+                        <input type="time" id="match-time" required class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 focus:border-brand-500 focus:outline-none">
+                    </div>
+
+                    <!-- Lieu -->
+                    <div>
+                        <label class="block text-slate-600 dark:text-slate-400 mb-1 font-medium">Lieu *</label>
+                        <select id="match-location" required onchange="onMatchLocationChange()" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 focus:border-brand-500 focus:outline-none">
+                            <option value="home">Domicile 🏠</option>
+                            <option value="away">Extérieur ✈️</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <!-- Stade / Terrain -->
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="block text-slate-600 dark:text-slate-400 font-medium">Stade / Arena</label>
+                            <span id="match-venue-hint" class="text-[10px] text-brand-500 font-medium"></span>
+                        </div>
+                        <input type="text" id="match-venue" list="match-venue-suggestions" placeholder="ex: Parc des Princes" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 focus:border-brand-500 focus:outline-none">
+                        <datalist id="match-venue-suggestions"></datalist>
+                    </div>
+
+                    <!-- Priorité -->
+                    <div>
+                        <label class="block text-slate-600 dark:text-slate-400 mb-1 font-medium">Priorité d'intérêt</label>
+                        <select id="match-priority" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 focus:border-brand-500 focus:outline-none">
+                            <option value="high">🔥 Élevée (Match clé)</option>
+                            <option value="medium" selected>⚡ Moyenne</option>
+                            <option value="low">💤 Basse</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-200 dark:border-slate-800/80 pt-3">
+                    <!-- Statut Accréditation -->
+                    <div>
+                        <label class="block text-slate-600 dark:text-slate-400 mb-1 font-medium">Statut Accréditation</label>
+                        <select id="match-accred-status" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 focus:border-brand-500 focus:outline-none">
+                            <option value="todo">🔴 Non demandée (À faire)</option>
+                            <option value="pending">🟡 Demande envoyée</option>
+                            <option value="approved">🟢 Accréditation validée</option>
+                            <option value="rejected">⚪ Refusée</option>
+                        </select>
+                    </div>
+
+                    <!-- Contact presse spécifique -->
+                    <div>
+                        <label class="block text-slate-600 dark:text-slate-400 mb-1 font-medium">Email Contact Presse pour ce match</label>
+                        <input type="email" id="match-press-email" placeholder="presse@club.com" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 focus:border-brand-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <!-- Notes / Matériel -->
+                <div>
+                    <label class="block text-slate-600 dark:text-slate-400 mb-1 font-medium">Notes personnelles (Consignes, badge, chasuble...)</label>
+                    <textarea id="match-notes" rows="2" placeholder="Accès chasuble porte B, flashs autorisés..." class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 focus:border-brand-500 focus:outline-none"></textarea>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex justify-end space-x-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+                    <button type="button" onclick="closeMatchModal()" class="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold transition">
+                        Annuler
+                    </button>
+                    <button type="submit" class="px-5 py-2 rounded-xl text-white bg-brand-600 hover:bg-brand-500 font-semibold transition shadow-lg shadow-brand-600/20">
+                        Enregistrer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- TEAM MODAL (Add / Edit) -->
+    <div id="team-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-lg overflow-y-auto max-h-[92vh] shadow-2xl transform transition-all text-slate-900 dark:text-slate-100">
+            <div class="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800">
+                <h3 class="font-bold flex items-center gap-2" id="team-modal-title">
+                    <i data-lucide="shield-plus" class="w-5 h-5 text-brand-500"></i> Ajouter une Équipe
+                </h3>
+                <button onclick="closeTeamModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            
+            <form id="team-form" onsubmit="handleTeamSubmit(event)" class="p-5 space-y-4 text-xs">
+                <input type="hidden" id="team-id">
+
+                <!-- Logo preview & Upload -->
+                <div class="flex items-center space-x-4 bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+                    <div id="team-logo-preview-box" class="w-12 h-12 rounded-xl bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-400 overflow-hidden flex-shrink-0 border border-slate-300 dark:border-slate-700">
+                        <i data-lucide="shield" class="w-6 h-6"></i>
+                    </div>
+                    <div class="flex-1 space-y-1">
+                        <label class="block text-slate-600 dark:text-slate-400 font-medium">Logo de l'équipe</label>
+                        <div class="flex items-center space-x-2">
+                            <label class="bg-brand-600 hover:bg-brand-500 text-white px-2.5 py-1.5 rounded-lg font-medium cursor-pointer transition text-[11px] inline-flex items-center gap-1">
+                                <i data-lucide="upload" class="w-3.5 h-3.5"></i> Téléverser image
+                                <input type="file" id="team-logo-file" accept="image/*" onchange="handleLogoFileUpload(event)" class="hidden">
+                            </label>
+                            <span class="text-slate-400 text-[10px]">ou par URL :</span>
+                        </div>
+                        <input type="url" id="team-logo-url" oninput="updateTeamLogoPreview()" placeholder="https://domaine.com/logo.png" class="w-full bg-white/90 dark:bg-slate-900/80 shadow-xl border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-[11px]">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <!-- Nom du club -->
+                    <div>
+                        <label class="block text-slate-600 dark:text-slate-400 mb-1 font-medium">Nom de l'équipe / Club *</label>
+                        <input type="text" id="team-name" required placeholder="ex: Orleans Basket" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 focus:border-brand-500 focus:outline-none">
+                    </div>
+
+                    <!-- Sport Dropdown -->
+                    <div>
+                        <label class="block text-slate-600 dark:text-slate-400 mb-1 font-medium">Sport *</label>
+                        <select id="team-sport" required class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 focus:border-brand-500 focus:outline-none">
+                            <option value="">Sélectionnez un sport...</option>
+                            <option value="Football">Football</option>
+                            <option value="Basket-ball">Basket-ball</option>
+                            <option value="Handball">Handball</option>
+                            <option value="Rugby">Rugby</option>
+                            <option value="Volleyball">Volleyball</option>
+                            <option value="Hockey sur glace">Hockey sur glace</option>
+                            <option value="Tennis">Tennis</option>
+                            <option value="Athlétisme">Athlétisme</option>
+                            <option value="Natation">Natation</option>
+                            <option value="Cyclisme">Cyclisme</option>
+                            <option value="Autre">Autre Sport</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Multiple Venues & Default Venue -->
+                <div class="space-y-2 border-t border-b border-slate-200 dark:border-slate-800/80 py-3">
+                    <label class="block text-slate-700 dark:text-slate-300 font-semibold">Stades / Salles de l'équipe</label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-slate-500 text-[11px] mb-1">Stades habituels (séparés par des virgules)</label>
+                            <input type="text" id="team-venues-list" placeholder="ex: Palais des Sports, Arena Co'Met" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 focus:border-brand-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-slate-500 text-[11px] mb-1">Stade par défaut (Matchs à domicile)</label>
+                            <input type="text" id="team-default-venue" placeholder="ex: Palais des Sports d'Orléans" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 focus:border-brand-500 focus:outline-none">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <!-- Nom Contact Press Officer -->
+                    <div>
+                        <label class="block text-slate-600 dark:text-slate-400 mb-1 font-medium">Nom Contact Presse / Attaché</label>
+                        <input type="text" id="team-contact-name" placeholder="ex: Marc Dupont" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 focus:border-brand-500 focus:outline-none">
+                    </div>
+
+                    <!-- Email Contact -->
+                    <div>
+                        <label class="block text-slate-600 dark:text-slate-400 mb-1 font-medium">Email Presse / Accréditation *</label>
+                        <input type="email" id="team-contact-email" required placeholder="presse@club.fr" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 focus:border-brand-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <!-- Notes / Procédure -->
+                <div>
+                    <label class="block text-slate-600 dark:text-slate-400 mb-1 font-medium">Procédure particulière / Notes</label>
+                    <textarea id="team-notes" rows="2" placeholder="Formulaire Google Forms à remplir 48h avant, Carte de presse obligatoire..." class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 focus:border-brand-500 focus:outline-none"></textarea>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex justify-end space-x-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+                    <button type="button" onclick="closeTeamModal()" class="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold transition">
+                        Annuler
+                    </button>
+                    <button type="submit" class="px-5 py-2 rounded-xl text-white bg-brand-600 hover:bg-brand-500 font-semibold transition shadow-lg shadow-brand-600/20">
+                        Enregistrer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- EMAIL ACCREDITATION GENERATOR MODAL -->
+    <div id="email-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-2xl overflow-y-auto max-h-[92vh] shadow-2xl transform transition-all text-slate-900 dark:text-slate-100">
+            <div class="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800">
+                <h3 class="font-bold flex items-center gap-2">
+                    <i data-lucide="mail-check" class="w-5 h-5 text-emerald-500"></i> Générateur de demande d'accréditation
+                </h3>
+                <button onclick="closeEmailModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            
+            <div class="p-5 space-y-4 text-xs">
+                <!-- Select Email Template -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-brand-50 dark:bg-slate-950 p-3 rounded-xl border border-brand-200 dark:border-slate-800">
+                    <label class="font-semibold text-brand-900 dark:text-brand-300 flex items-center gap-1.5">
+                        <i data-lucide="file-text" class="w-4 h-4 text-brand-500"></i> Modèle de mail :
+                    </label>
+                    <select id="email-template-select" onchange="onTemplateSelectionChange()" class="bg-white/90 dark:bg-slate-900/80 shadow-xl border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:border-brand-500">
+                        <!-- Dynamic options loaded via JS -->
+                    </select>
+                </div>
+
+                <div class="bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1">
+                    <p class="text-slate-500 dark:text-slate-400"><span class="text-slate-800 dark:text-slate-200 font-medium">Destinataire :</span> <span id="email-modal-to" class="text-brand-600 dark:text-brand-400 font-mono font-semibold"></span></p>
+                    <p class="text-slate-500 dark:text-slate-400"><span class="text-slate-800 dark:text-slate-200 font-medium">Sujet :</span> <span id="email-modal-subject" class="text-slate-900 dark:text-slate-100 font-semibold"></span></p>
+                </div>
+
+                <div>
+                    <label class="block text-slate-600 dark:text-slate-400 mb-1 font-medium">Aperçu & Modification du message :</label>
+                    <textarea id="email-modal-body" rows="10" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-slate-800 dark:text-slate-200 font-mono text-xs focus:border-brand-500 focus:outline-none leading-relaxed"></textarea>
+                </div>
+
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+                    <div class="text-slate-500 text-[11px]">
+                        <i data-lucide="info" class="w-3.5 h-3.5 inline mr-1 text-slate-400"></i> Copiez le texte ou lancez votre logiciel de messagerie.
+                    </div>
+                    <div class="flex items-center space-x-2 w-full sm:w-auto">
+                        <button onclick="copyEmailToClipboard()" class="flex-1 sm:flex-none flex items-center justify-center space-x-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 px-4 py-2 rounded-xl font-semibold transition">
+                            <i data-lucide="copy" class="w-4 h-4"></i>
+                            <span>Copier le texte</span>
+                        </button>
+                        <a id="email-modal-mailto-btn" target="_blank" onclick="markAsPendingAfterMail()" class="flex-1 sm:flex-none flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl font-semibold transition shadow-lg shadow-emerald-600/20">
+                            <i data-lucide="send" class="w-4 h-4"></i>
+                            <span>Ouvrir Mail Client</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SETTINGS & TEMPLATES MANAGEMENT MODAL -->
+    <div id="settings-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl transform transition-all text-slate-900 dark:text-slate-100">
+            <div class="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800 sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur z-10">
+                <h3 class="font-bold flex items-center gap-2">
+                    <i data-lucide="settings" class="w-5 h-5 text-brand-500"></i> Paramètres & Modèles
+                </h3>
+                <button onclick="closeSettingsModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            
+            <div class="p-5 space-y-8 text-xs">
+                <!-- Profil Photographe -->
+                <div class="space-y-3">
+                    <h4 class="font-bold border-b border-slate-200 dark:border-slate-800 pb-1 flex items-center gap-2 text-sm text-brand-600 dark:text-brand-400">
+                        <i data-lucide="user-check" class="w-4 h-4"></i> Profil du Photographe (Informations intégrées)
+                    </h4>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-slate-600 dark:text-slate-400 mb-1">Prénom & Nom</label>
+                            <input type="text" id="setting-photo-name" placeholder="ex: Alexandre Rocher" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2 focus:border-brand-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-slate-600 dark:text-slate-400 mb-1">Média / Agence / Statut</label>
+                            <input type="text" id="setting-photo-media" placeholder="ex: Freelance / SportPics" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2 focus:border-brand-500 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-slate-600 dark:text-slate-400 mb-1">Téléphone</label>
+                            <input type="text" id="setting-photo-phone" placeholder="ex: 06 12 34 56 78" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2 focus:border-brand-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-slate-600 dark:text-slate-400 mb-1">N° Carte de Presse / Numéro SIRET</label>
+                            <input type="text" id="setting-photo-card" placeholder="ex: CP 12345 / SIRET..." class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2 focus:border-brand-500 focus:outline-none">
+                        </div>
+                    </div>
+                    <button onclick="saveProfileSettings()" class="bg-brand-600 hover:bg-brand-500 text-white px-3.5 py-1.5 rounded-xl font-semibold transition shadow-md shadow-brand-600/20">
+                        Sauvegarder le profil
+                    </button>
+                </div>
+
+                <!-- Modèles d'Email personnalisés -->
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-1">
+                        <h4 class="font-bold flex items-center gap-2 text-sm text-brand-600 dark:text-brand-400">
+                            <i data-lucide="mail-open" class="w-4 h-4"></i> Modèles de Mails d'Accréditation
+                        </h4>
+                        <button onclick="addNewEmailTemplate()" class="text-xs bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Nouveau modèle
+                        </button>
+                    </div>
+
+                    <p class="text-slate-500 text-[11px] leading-relaxed">
+                        Variables disponibles pour l'auto-remplissage : <code class="bg-slate-100 dark:bg-slate-950 px-1 py-0.5 rounded font-mono text-brand-600 dark:text-brand-400">{equipe}</code>, <code class="bg-slate-100 dark:bg-slate-950 px-1 py-0.5 rounded font-mono text-brand-600 dark:text-brand-400">{adversaire}</code>, <code class="bg-slate-100 dark:bg-slate-950 px-1 py-0.5 rounded font-mono text-brand-600 dark:text-brand-400">{sport}</code>, <code class="bg-slate-100 dark:bg-slate-950 px-1 py-0.5 rounded font-mono text-brand-600 dark:text-brand-400">{date}</code>, <code class="bg-slate-100 dark:bg-slate-950 px-1 py-0.5 rounded font-mono text-brand-600 dark:text-brand-400">{heure}</code>, <code class="bg-slate-100 dark:bg-slate-950 px-1 py-0.5 rounded font-mono text-brand-600 dark:text-brand-400">{lieu}</code>, <code class="bg-slate-100 dark:bg-slate-950 px-1 py-0.5 rounded font-mono text-brand-600 dark:text-brand-400">{nom_photo}</code>, <code class="bg-slate-100 dark:bg-slate-950 px-1 py-0.5 rounded font-mono text-brand-600 dark:text-brand-400">{media_photo}</code>.
+                    </p>
+
+                    <div id="templates-editor-list" class="space-y-4">
+                        <!-- Templates rendered dynamically -->
+                    </div>
+                </div>
+
+                <!-- Export / Import Local Storage -->
+                <div class="space-y-3 border-t border-slate-200 dark:border-slate-800 pt-4">
+                    <h4 class="font-bold border-b border-slate-200 dark:border-slate-800 pb-1 flex items-center gap-2 text-sm text-brand-600 dark:text-brand-400">
+                        <i data-lucide="database" class="w-4 h-4"></i> Sauvegarde & Restauration
+                    </h4>
+                    <p class="text-slate-500 dark:text-slate-400 leading-relaxed">
+                        Vos données sont enregistrées en ligne dans votre base Supabase (synchronisées sur tous vos appareils).
+                    </p>
+
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="exportDataJSON()" class="flex items-center space-x-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 px-3 py-2 rounded-xl font-semibold transition">
+                            <i data-lucide="download" class="w-4 h-4"></i>
+                            <span>Exporter (.JSON)</span>
+                        </button>
+
+                        <label class="flex items-center space-x-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 px-3 py-2 rounded-xl font-semibold transition cursor-pointer">
+                            <i data-lucide="upload" class="w-4 h-4"></i>
+                            <span>Importer (.JSON)</span>
+                            <input type="file" id="import-json-file" accept=".json" onchange="importDataJSON(event)" class="hidden">
+                        </label>
+
+                        <button onclick="resetToDemoData()" class="flex items-center space-x-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 px-3 py-2 rounded-xl font-semibold transition ml-auto">
+                            <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                            <span>Réinitialiser Demo</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AUTH OVERLAY (Supabase) -->
+    <div id="auth-overlay" class="fixed inset-0 z-[60] bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4 text-slate-900 dark:text-slate-100">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 flex items-center justify-center bg-gradient-to-tr from-red-600 to-amber-500 rounded-full text-white"><i data-lucide="camera" class="w-6 h-6"></i></div>
+                <div>
+                    <h2 class="font-bold text-lg">SportLens <span class="text-xs text-brand-500">Pro</span></h2>
+                    <p class="text-xs text-slate-500">Connectez-vous pour accéder à vos données</p>
+                </div>
+            </div>
+            <form id="auth-form" onsubmit="handleAuthSubmit(event)" class="space-y-3 text-xs">
+                <input type="email" id="auth-email" required autocomplete="email" placeholder="Email" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 focus:border-brand-500 focus:outline-none">
+                <input type="password" id="auth-password" required minlength="6" autocomplete="current-password" placeholder="Mot de passe (6 caractères min.)" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 focus:border-brand-500 focus:outline-none">
+                <p id="auth-error" class="text-rose-500 hidden"></p>
+                <div class="flex gap-2">
+                    <button type="submit" onclick="authMode='login'" class="flex-1 bg-brand-600 hover:bg-brand-500 text-white py-2.5 rounded-xl font-semibold transition">Connexion</button>
+                    <button type="submit" onclick="authMode='signup'" class="flex-1 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 py-2.5 rounded-xl font-semibold transition">Créer un compte</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast-notification" class="fixed bottom-5 right-5 z-50 bg-slate-900 text-white border border-slate-800 px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 transform translate-y-20 opacity-0 transition-all duration-300">
+        <i data-lucide="check-circle" id="toast-icon" class="w-5 h-5 text-emerald-400"></i>
+        <span id="toast-message" class="text-xs font-semibold">Action effectuée</span>
+    </div>
+
+    <script>
+        /* ----------------------------------------------------
+           DATA STRUCTURES & INITIALIZATION
+        ---------------------------------------------------- */
+        const STORAGE_KEY_TEAMS = 'sportlens_teams_v2';
+        const STORAGE_KEY_MATCHES = 'sportlens_matches_v2';
+        const STORAGE_KEY_PROFILE = 'sportlens_profile_v2';
+        const STORAGE_KEY_TEMPLATES = 'sportlens_templates_v2';
+        const STORAGE_KEY_THEME = 'sportlens_theme_v2';
+
+        // Default Email Templates
+        const DEFAULT_TEMPLATES = [
+            {
+                id: 'tpl_regular',
+                name: 'Club habituel / Partenaire régulier',
+                subject: 'Demande accréditation photo - {equipe} vs {adversaire} ({date})',
+                body: `Bonjour,
+
+Je me permets de vous contacter pour demander mon accréditation photographique pour le prochain match :
+
+Match : {equipe} vs {adversaire} ({sport})
+Date & Heure : {date} à {heure}
+Lieu : {lieu}
+
+Mes coordonnées :
+- Nom : {nom_photo}
+- Média / Agence : {media_photo}
+
+Merci d'avance pour votre confirmation.
+
+Bien cordialement,
+{nom_photo}
+{media_photo}`
+            },
+            {
+                id: 'tpl_first_contact',
+                name: 'Premier contact / Nouveau club',
+                subject: 'Demande d\'accréditation photo - {equipe} vs {adversaire} du {date}',
+                body: `Bonjour,
+
+Photographe de sport pour {media_photo}, je souhaiterais obtenir une accréditation presse / terrain pour la rencontre suivante :
+
+Rencontre : {equipe} vs {adversaire}
+Sport : {sport}
+Date & Horaire : {date} à {heure}
+Lieu : {lieu}
+
+Coordonnées du photographe :
+- Nom & Prénom : {nom_photo}
+- Média / Organisme : {media_photo}
+
+Je me tiens à votre entière disposition pour tout renseignement complémentaire ou envoi de carte de presse.
+
+Cordialement,
+
+{nom_photo}`
+            },
+            {
+                id: 'tpl_reminder',
+                name: 'Relance d\'accréditation sans réponse',
+                subject: 'RELANCE : Accréditation photo {equipe} vs {adversaire} ({date})',
+                body: `Bonjour,
+
+Je me permets de vous relancer concernant ma demande d'accréditation photo pour le match {equipe} vs {adversaire} prévu le {date} à {heure} ({lieu}).
+
+Pouvez-vous s'il vous plaît me confirmer la prise en compte de ma demande et les modalités d'accès terrain (chasuble / badge) ?
+
+Merci par avance,
+
+{nom_photo}
+{media_photo}`
+            }
+        ];
+
+        // Default Demo Teams with logos & venues
+        const DEMO_TEAMS = [
+            {
+                id: 'team_1',
+                name: 'Orléans Loiret Basket',
+                sport: 'Basket-ball',
+                logoUrl: 'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=100&auto=format&fit=crop&q=60',
+                venues: ['Palais des Sports d\'Orléans', 'Arena Co\'Met'],
+                defaultVenue: 'Palais des Sports d\'Orléans',
+                contactName: 'Mathieu Bertrand',
+                contactEmail: 'presse@orleansbasket.fr',
+                notes: 'Accréditation au moins 48h avant. Entrée presse Porte C.'
+            },
+            {
+                id: 'team_2',
+                name: 'US Orléans Football',
+                sport: 'Football',
+                logoUrl: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=100&auto=format&fit=crop&q=60',
+                venues: ['Stade de la Source'],
+                defaultVenue: 'Stade de la Source',
+                contactName: 'Sophie Laurent',
+                contactEmail: 'communication@usofoot.com',
+                notes: 'Formulaire ou demande directe par mail.'
+            },
+            {
+                id: 'team_3',
+                name: 'Saran Loiret Handball',
+                sport: 'Handball',
+                logoUrl: 'https://images.unsplash.com/photo-1519766304817-4f37bda74a29?w=100&auto=format&fit=crop&q=60',
+                venues: ['Halle du Bois Joly', 'Arena Co\'Met'],
+                defaultVenue: 'Halle du Bois Joly',
+                contactName: 'Lucie Moreau',
+                contactEmail: 'presse@saran-hb.fr',
+                notes: 'Flashs interdits. Chasuble obligatoire.'
+            }
+        ];
+
+        function getRelativeDate(daysOffset) {
+            const d = new Date();
+            d.setDate(d.getDate() + daysOffset);
+            return d.toISOString().split('T')[0];
+        }
+
+        const DEMO_MATCHES = [
+            {
+                id: 'match_1',
+                myTeamId: 'team_1',
+                opponent: 'Antibes Sharks',
+                date: getRelativeDate(1),
+                time: '20:00',
+                location: 'home',
+                venue: 'Palais des Sports d\'Orléans',
+                priority: 'high',
+                accredStatus: 'todo',
+                pressEmail: 'presse@orleansbasket.fr',
+                notes: 'Match choc haut de tableau.'
+            },
+            {
+                id: 'match_2',
+                myTeamId: 'team_2',
+                opponent: 'FC Rouen',
+                date: getRelativeDate(3),
+                time: '19:30',
+                location: 'home',
+                venue: 'Stade de la Source',
+                priority: 'high',
+                accredStatus: 'pending',
+                pressEmail: 'communication@usofoot.com',
+                notes: 'Demande envoyée mardi.'
+            },
+            {
+                id: 'match_3',
+                myTeamId: 'team_3',
+                opponent: 'Paris PSG Handball',
+                date: getRelativeDate(12),
+                time: '17:00',
+                location: 'home',
+                venue: 'Arena Co\'Met',
+                priority: 'high',
+                accredStatus: 'approved',
+                pressEmail: 'presse@saran-hb.fr',
+                notes: 'Badge validé. Chasuble au guichet 1h avant.'
+            }
+        ];
+
+        const DEFAULT_PROFILE = {
+            name: 'Alexandre Rocher',
+            media: 'Photographe Indépendant / Sport-Pics',
+            phone: '06 98 76 54 32',
+            card: 'CP-89412'
+        };
+
+        // App State Variables
+        let teams = [];
+        let matches = [];
+        let profile = {};
+        let templates = [];
+        let activeTab = 'dashboard';
+        let currentEmailMatchId = null;
+        let matchesViewMode = 'detailed'; // 'detailed' or 'compact'
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            loadTheme();
+            initSnow();
+            initLucideIcons();
+            const { data: { session } } = await sb.auth.getSession();
+            if (session) {
+                currentUser = session.user;
+                await enterApp();
+            } else {
+                showAuth();
+            }
+        });
+
+        /* ----------------------------------------------------
+           THEME TOGGLE LOGIC (DARK / LIGHT MODE)
+        ---------------------------------------------------- */
+        function loadTheme() {
+            const savedTheme = localStorage.getItem(STORAGE_KEY_THEME) || 'dark';
+            if (savedTheme === 'dark') {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        }
+
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.contains('dark');
+            if (isDark) {
+                document.documentElement.classList.remove('dark');
+                localStorage.setItem(STORAGE_KEY_THEME, 'light');
+            } else {
+                document.documentElement.classList.add('dark');
+                localStorage.setItem(STORAGE_KEY_THEME, 'dark');
+            }
+            initLucideIcons();
+        }
+
+        /* ----------------------------------------------------
+           STORAGE & LOGIC HANDLERS
+        ---------------------------------------------------- */
+        /* ----------------------------------------------------
+           SUPABASE : CONNEXION, CHARGEMENT & SYNCHRO
+           ⚠️ Remplacez les 2 valeurs ci-dessous (Settings > API)
+        ---------------------------------------------------- */
+        const SUPABASE_URL = 'https://eccuzksdjcaykimseewy.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_WXvpeoNcxeiOAWIRD4iOBw_5vejCazM';
+        const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        let currentUser = null;
+        let authMode = 'login';
+        const known = { teams: new Set(), matches: new Set(), templates: new Set() };
+
+        // --- Conversion objets JS <-> lignes SQL ---
+        const teamToRow = t => ({
+            id: t.id, user_id: currentUser.id, name: t.name, sport: t.sport || null,
+            logo_url: t.logoUrl || null, venues: t.venues || [], default_venue: t.defaultVenue || null,
+            contact_name: t.contactName || null, contact_email: t.contactEmail || null, notes: t.notes || null
+        });
+        const rowToTeam = r => ({
+            id: r.id, name: r.name, sport: r.sport || '', logoUrl: r.logo_url || '', venues: r.venues || [],
+            defaultVenue: r.default_venue || '', contactName: r.contact_name || '',
+            contactEmail: r.contact_email || '', notes: r.notes || ''
+        });
+        const matchToRow = m => ({
+            id: m.id, user_id: currentUser.id, my_team_id: m.myTeamId || null, opponent: m.opponent,
+            date: m.date, time: m.time || null, location: m.location, venue: m.venue || null,
+            priority: m.priority || 'medium', accred_status: m.accredStatus || 'todo',
+            press_email: m.pressEmail || null, notes: m.notes || null
+        });
+        const rowToMatch = r => ({
+            id: r.id, myTeamId: r.my_team_id, opponent: r.opponent, date: r.date,
+            time: (r.time || '').slice(0, 5), location: r.location, venue: r.venue || '',
+            priority: r.priority, accredStatus: r.accred_status, pressEmail: r.press_email || '', notes: r.notes || ''
+        });
+        const tplToRow = (t, i) => ({
+            id: t.id, user_id: currentUser.id, name: t.name, subject: t.subject, body: t.body, position: i
+        });
+
+        function readLegacyLocal(key) {
+            try { return JSON.parse(localStorage.getItem(key)); } catch (e) { return null; }
+        }
+
+        async function loadDataFromSupabase() {
+            const [t, m, p, tp] = await Promise.all([
+                sb.from('sl_teams').select('*').order('name'),
+                sb.from('sl_matches').select('*'),
+                sb.from('sl_profile').select('*').maybeSingle(),
+                sb.from('sl_templates').select('*').order('position')
+            ]);
+            for (const r of [t, m, p, tp]) if (r.error) throw r.error;
+
+            teams = t.data.map(rowToTeam);
+            matches = m.data.map(rowToMatch);
+            profile = p.data ? { name: p.data.name || '', media: p.data.media || '', phone: p.data.phone || '', card: p.data.card || '' }
+                             : { name: '', media: '', phone: '', card: '' };
+            templates = tp.data.map(r => ({ id: r.id, name: r.name, subject: r.subject || '', body: r.body || '' }));
+
+            known.teams = new Set(teams.map(x => x.id));
+            known.matches = new Set(matches.map(x => x.id));
+            known.templates = new Set(templates.map(x => x.id));
+
+            let needSave = false;
+
+            // Première connexion : on récupère les anciennes données locales (localStorage) s'il y en a
+            if (!teams.length && !matches.length) {
+                const lt = readLegacyLocal(STORAGE_KEY_TEAMS), lm = readLegacyLocal(STORAGE_KEY_MATCHES);
+                if ((lt && lt.length) || (lm && lm.length)) {
+                    teams = lt || []; matches = lm || [];
+                    const lp = readLegacyLocal(STORAGE_KEY_PROFILE);
+                    if (lp && !p.data) profile = lp;
+                    const ltp = readLegacyLocal(STORAGE_KEY_TEMPLATES);
+                    if (ltp && ltp.length && !templates.length) templates = ltp;
+                    needSave = true;
+                    showToast('Données locales importées dans Supabase !');
+                }
+            }
+            if (!templates.length) { templates = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES)); needSave = true; }
+            if (needSave) saveToStorage();
+        }
+
+        async function syncTable(table, rows, knownSet) {
+            if (rows.length) {
+                const { error } = await sb.from(table).upsert(rows, { onConflict: 'user_id,id' });
+                if (error) throw error;
+            }
+            const ids = new Set(rows.map(r => r.id));
+            const gone = [...knownSet].filter(id => !ids.has(id));
+            if (gone.length) {
+                const { error } = await sb.from(table).delete().in('id', gone);
+                if (error) throw error;
+            }
+            knownSet.clear();
+            ids.forEach(id => knownSet.add(id));
+        }
+
+        async function syncToSupabase() {
+            if (!currentUser) return;
+            await syncTable('sl_teams', teams.map(teamToRow), known.teams);
+            await syncTable('sl_matches', matches.map(matchToRow), known.matches);
+            await syncTable('sl_templates', templates.map(tplToRow), known.templates);
+            const { error } = await sb.from('sl_profile').upsert({
+                user_id: currentUser.id, name: profile.name || null, media: profile.media || null,
+                phone: profile.phone || null, card: profile.card || null
+            }, { onConflict: 'user_id' });
+            if (error) throw error;
+        }
+
+        // Les appels existants à saveToStorage() déclenchent maintenant une synchro Supabase (file d'attente)
+        let syncQueue = Promise.resolve();
+        function saveToStorage() {
+            syncQueue = syncQueue.then(syncToSupabase).catch(err => {
+                console.error('Erreur de synchronisation Supabase :', err);
+                showToast('⚠️ Échec de la sauvegarde en ligne');
+            });
+        }
+
+        /* ---------- Authentification ---------- */
+        function showAuth() {
+            document.getElementById('auth-overlay').classList.remove('hidden');
+            initLucideIcons();
+        }
+
+        async function enterApp() {
+            document.getElementById('auth-overlay').classList.add('hidden');
+            try {
+                await loadDataFromSupabase();
+            } catch (err) {
+                console.error(err);
+                showToast('⚠️ Impossible de charger les données (tables créées ?)');
+            }
+            renderAll();
+        }
+
+        async function handleAuthSubmit(e) {
+            e.preventDefault();
+            const email = document.getElementById('auth-email').value.trim();
+            const password = document.getElementById('auth-password').value;
+            const errEl = document.getElementById('auth-error');
+            errEl.classList.add('hidden');
+            try {
+                let res;
+                if (authMode === 'signup') {
+                    res = await sb.auth.signUp({ email, password });
+                    if (res.error) throw res.error;
+                    if (!res.data.session) {
+                        errEl.textContent = 'Compte créé : confirmez votre email puis connectez-vous.';
+                        errEl.classList.remove('hidden');
+                        return;
+                    }
+                } else {
+                    res = await sb.auth.signInWithPassword({ email, password });
+                    if (res.error) throw res.error;
+                }
+                currentUser = res.data.user;
+                await enterApp();
+            } catch (err) {
+                errEl.textContent = err.message || 'Connexion impossible.';
+                errEl.classList.remove('hidden');
+            }
+        }
+
+        async function logout() {
+            await syncQueue;
+            await sb.auth.signOut();
+            currentUser = null;
+            teams = []; matches = []; templates = [];
+            profile = {};
+            renderAll();
+            showAuth();
+        }
+
+        function esc(s) {
+            return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        function initSnow() {
+            const box = document.getElementById('snow-container');
+            if (!box) return;
+            const n = window.innerWidth < 640 ? 14 : 26;
+            for (let i = 0; i < n; i++) {
+                const f = document.createElement('div');
+                f.className = 'snowflake';
+                f.textContent = ['❄', '❅', '❆', '✨'][Math.floor(Math.random() * 4)];
+                f.style.left = (Math.random() * 94) + '%';
+                f.style.animationDuration = (Math.random() * 10 + 6) + 's';
+                f.style.animationDelay = (Math.random() * 5) + 's';
+                f.style.fontSize = (Math.random() * 10 + 10) + 'px';
+                f.style.opacity = Math.random() * 0.7 + 0.3;
+                box.appendChild(f);
+            }
+        }
+
+        // Menus « ⋯ » : fermeture au clic extérieur, passage au-dessus des cartes, ouverture vers le haut si besoin
+        document.addEventListener('click', e => {
+            document.querySelectorAll('details.gmenu[open]').forEach(d => { if (!d.contains(e.target)) d.removeAttribute('open'); });
+        });
+        document.addEventListener('toggle', e => {
+            const d = e.target;
+            if (!d.classList || !d.classList.contains('gmenu')) return;
+            const card = d.closest('.gcard');
+            if (card) card.classList.toggle('gcard-open', d.open);
+            if (d.open) {
+                d.classList.remove('gmenu-up');
+                const r = d.querySelector('.gmenu-pop').getBoundingClientRect();
+                if (r.bottom > window.innerHeight - 8 && d.getBoundingClientRect().top > r.height + 16) d.classList.add('gmenu-up');
+            }
+        }, true);
+
+        function initLucideIcons() {
+            if (window.lucide) {
+                lucide.createIcons();
+            }
+        }
+
+        /* ----------------------------------------------------
+           NAVIGATION & TAB SWITCHING
+        ---------------------------------------------------- */
+        function switchTab(tab) {
+            activeTab = tab;
+
+            document.getElementById('tab-dashboard-view').classList.add('hidden');
+            document.getElementById('tab-matches-view').classList.add('hidden');
+            document.getElementById('tab-teams-view').classList.add('hidden');
+
+            const inactiveNavClass = "w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60";
+            const activeNavClass = "w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition bg-brand-600 text-white shadow-lg shadow-brand-600/20";
+
+            document.getElementById('nav-dashboard').className = inactiveNavClass;
+            document.getElementById('nav-matches').className = inactiveNavClass;
+            document.getElementById('nav-teams').className = inactiveNavClass;
+
+            if (tab === 'dashboard') {
+                document.getElementById('tab-dashboard-view').classList.remove('hidden');
+                document.getElementById('nav-dashboard').className = activeNavClass;
+            } else if (tab === 'matches') {
+                document.getElementById('tab-matches-view').classList.remove('hidden');
+                document.getElementById('nav-matches').className = activeNavClass;
+            } else if (tab === 'teams') {
+                document.getElementById('tab-teams-view').classList.remove('hidden');
+                document.getElementById('nav-teams').className = activeNavClass;
+            }
+
+            renderAll();
+        }
+
+        /* ----------------------------------------------------
+           RENDER FUNCTIONS
+        ---------------------------------------------------- */
+        function renderAll() {
+            matches.sort((a, b) => new Date(a.date + 'T' + a.time) - new Date(b.date + 'T' + b.time));
+
+            renderBadgesAndStats();
+            renderWeeklyDashboard();
+            renderAllMatchesList();
+            renderTeamsList();
+            populateTeamSelectOptions();
+            updateProfileSummaryDisplay();
+            initLucideIcons();
+        }
+
+        function renderBadgesAndStats() {
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const in7Days = new Date();
+            in7Days.setDate(today.getDate() + 7);
+
+            const weeklyMatches = matches.filter(m => {
+                const mDate = new Date(m.date);
+                return mDate >= today && mDate <= in7Days;
+            });
+
+            document.getElementById('badge-week-count').textContent = weeklyMatches.length;
+            document.getElementById('badge-all-count').textContent = matches.length;
+            document.getElementById('badge-teams-count').textContent = teams.length;
+
+            const todoCount = matches.filter(m => m.accredStatus === 'todo').length;
+            const pendingCount = matches.filter(m => m.accredStatus === 'pending').length;
+            const approvedCount = matches.filter(m => m.accredStatus === 'approved').length;
+            const rejectedCount = matches.filter(m => m.accredStatus === 'rejected').length;
+
+            document.getElementById('stat-todo').textContent = todoCount;
+            document.getElementById('stat-pending').textContent = pendingCount;
+            document.getElementById('stat-approved').textContent = approvedCount;
+            document.getElementById('stat-rejected').textContent = rejectedCount;
+
+            const urgentWeeklyTodo = weeklyMatches.filter(m => m.accredStatus === 'todo').length;
+            const urgentBanner = document.getElementById('urgent-tasks-banner');
+            if (urgentWeeklyTodo > 0) {
+                urgentBanner.classList.remove('hidden');
+                document.getElementById('urgent-count-text').textContent = urgentWeeklyTodo + ' ' + (urgentWeeklyTodo > 1 ? 'accréditations' : 'accréditation');
+            } else {
+                urgentBanner.classList.add('hidden');
+            }
+        }
+
+        function getTeamById(id) {
+            return teams.find(t => t.id === id) || { name: 'Équipe inconnue', sport: 'Sport', contactEmail: '', logoUrl: '' };
+        }
+
+        function formatFrenchDate(dateStr) {
+            if (!dateStr) return '';
+            const d = new Date(dateStr + 'T00:00:00');
+            const options = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' };
+            return d.toLocaleDateString('fr-FR', options);
+        }
+
+        function getStatusBadgeHTML(status) {
+            switch(status) {
+                case 'todo':
+                    return `<span class="sbadge inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5"></span>Non demandée
+                            </span>`;
+                case 'pending':
+                    return `<span class="sbadge inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                                <span class="w-1.5 h-1.5 rounded-full bg-blue-500 mr-1.5"></span>Demande envoyée
+                            </span>`;
+                case 'approved':
+                    return `<span class="sbadge inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 font-bold"></span>Validée
+                            </span>`;
+                case 'rejected':
+                    return `<span class="sbadge inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                                <span class="w-1.5 h-1.5 rounded-full bg-rose-500 mr-1.5"></span>Refusée
+                            </span>`;
+                default:
+                    return '';
+            }
+        }
+
+        /* ----------------------------------------------------
+           MATCH CARDS & LISTS WITH WEEKS GROUPING
+        ---------------------------------------------------- */
+        function renderWeeklyDashboard() {
+            const container = document.getElementById('weekly-matches-list');
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const in7Days = new Date();
+            in7Days.setDate(today.getDate() + 7);
+
+            const weeklyMatches = matches.filter(m => {
+                const mDate = new Date(m.date);
+                return mDate >= today && mDate <= in7Days;
+            });
+
+            if (weeklyMatches.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-white/90 dark:bg-slate-900/80 shadow-xl border border-slate-200 dark:border-slate-800 rounded-3xl p-8 text-center text-slate-500 space-y-3">
+                        <i data-lucide="calendar-off" class="w-10 h-10 mx-auto text-slate-400"></i>
+                        <p class="text-sm font-medium">Aucun match prévu pour les 7 prochains jours.</p>
+                        <button onclick="openNewMatchModal()" class="text-xs text-brand-500 hover:underline">Ajouter un match à venir</button>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = weeklyMatches.map(m => createMatchCardHTML(m)).join('');
+        }
+
+        function setMatchesViewMode(mode) {
+            matchesViewMode = mode;
+            const btnDetailed = document.getElementById('btn-view-detailed');
+            const btnCompact = document.getElementById('btn-view-compact');
+
+            if (mode === 'detailed') {
+                btnDetailed.className = "px-3 py-1.5 rounded-lg font-semibold transition bg-brand-600 text-white shadow-sm";
+                btnCompact.className = "px-3 py-1.5 rounded-lg font-semibold transition text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white";
+            } else {
+                btnCompact.className = "px-3 py-1.5 rounded-lg font-semibold transition bg-brand-600 text-white shadow-sm";
+                btnDetailed.className = "px-3 py-1.5 rounded-lg font-semibold transition text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white";
+            }
+            renderAllMatchesList();
+        }
+
+        // Helper to get ISO week number and year label
+        function getWeekKeyAndLabel(dateStr) {
+            const d = new Date(dateStr + 'T00:00:00');
+            // Get Monday of that week
+            const day = d.getDay();
+            const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+            const monday = new Date(d.setDate(diff));
+            const sunday = new Date(monday);
+            sunday.setDate(monday.getDate() + 6);
+
+            const options = { day: 'numeric', month: 'short' };
+            const mondayStr = monday.toLocaleDateString('fr-FR', options);
+            const sundayStr = sunday.toLocaleDateString('fr-FR', options);
+
+            const year = monday.getFullYear();
+            // Week number calculation
+            const firstDayOfYear = new Date(year, 0, 1);
+            const pastDaysOfYear = (monday - firstDayOfYear) / 86400000;
+            const weekNum = Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+
+            return {
+                key: `${year}-W${weekNum}`,
+                label: `Semaine ${weekNum} (${mondayStr} au ${sundayStr})`,
+                sortDate: monday.getTime()
+            };
+        }
+
+        function renderAllMatchesList() {
+            const container = document.getElementById('all-matches-list');
+            
+            const searchVal = document.getElementById('filter-search')?.value.toLowerCase() || '';
+            const statusVal = document.getElementById('filter-status')?.value || 'all';
+            const teamVal = document.getElementById('filter-team')?.value || 'all';
+            const locVal = document.getElementById('filter-location')?.value || 'all';
+
+            const filtered = matches.filter(m => {
+                const myTeam = getTeamById(m.myTeamId);
+                const matchText = `${myTeam.name} ${m.opponent} ${m.venue} ${myTeam.sport}`.toLowerCase();
+                
+                const matchesSearch = matchText.includes(searchVal);
+                const matchesStatus = statusVal === 'all' || m.accredStatus === statusVal;
+                const matchesTeam = teamVal === 'all' || m.myTeamId === teamVal;
+                const matchesLoc = locVal === 'all' || m.location === locVal;
+
+                return matchesSearch && matchesStatus && matchesTeam && matchesLoc;
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-white/90 dark:bg-slate-900/80 shadow-xl border border-slate-200 dark:border-slate-800 rounded-3xl p-8 text-center text-slate-500 space-y-2">
+                        <i data-lucide="filter-x" class="w-8 h-8 mx-auto text-slate-400"></i>
+                        <p class="text-xs font-medium">Aucun match ne correspond aux filtres appliqués.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Group filtered matches by week
+            const weeksMap = {};
+            filtered.forEach(m => {
+                const wk = getWeekKeyAndLabel(m.date);
+                if (!weeksMap[wk.key]) {
+                    weeksMap[wk.key] = {
+                        label: wk.label,
+                        sortDate: wk.sortDate,
+                        matches: []
+                    };
+                }
+                weeksMap[wk.key].matches.push(m);
+            });
+
+            // Sort weeks chronologically
+            const sortedWeeks = Object.values(weeksMap).sort((a, b) => a.sortDate - b.sortDate);
+
+            if (matchesViewMode === 'detailed') {
+                container.innerHTML = sortedWeeks.map(week => `
+                    <div class="space-y-3">
+                        <div class="flex items-center space-x-2 pb-1 border-b border-slate-200 dark:border-slate-800">
+                            <i data-lucide="calendar-range" class="w-4 h-4 text-brand-500"></i>
+                            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">${week.label}</h3>
+                            <span class="text-[10px] px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 font-semibold">${week.matches.length} match(s)</span>
+                        </div>
+                        <div class="space-y-3">
+                            ${week.matches.map(m => createMatchCardHTML(m)).join('')}
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                // Vue synthétique : tableau à colonnes fixes
+                container.innerHTML = renderCompactWeeksHTML(sortedWeeks);
+            }
+        }
+
+        function renderCompactWeeksHTML(weeks) {
+            return weeks.map(week => `
+                <div class="space-y-2">
+                    <div class="flex items-center space-x-2 pb-1 border-b border-slate-200 dark:border-slate-800">
+                        <i data-lucide="calendar-range" class="w-4 h-4 text-brand-500"></i>
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">${week.label}</h3>
+                        <span class="text-[10px] px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 font-semibold">${week.matches.length} match(s)</span>
+                    </div>
+                    <div class="bg-white/90 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xl">
+                        <table class="tbl">
+                            <colgroup><col style="width:8.5rem"><col><col style="width:12rem"><col style="width:11rem"><col style="width:8.5rem"></colgroup>
+                            <thead><tr><th>Date / Heure</th><th>Match</th><th>Lieu</th><th class="c">Statut</th><th class="r">Actions</th></tr></thead>
+                            <tbody>
+                                ${week.matches.map(m => {
+                                    const team = getTeamById(m.myTeamId);
+                                    const isHome = m.location === 'home';
+                                    return `
+                                    <tr>
+                                        <td data-label="Date"><div class="cell-date"><strong class="text-slate-800 dark:text-slate-200">${formatFrenchDate(m.date)}</strong><span class="text-slate-400">${esc(m.time)}</span></div></td>
+                                        <td data-label="Match"><div class="cell-match"><div class="t" title="${esc(team.name)} vs ${esc(m.opponent)}">${esc(team.name)} <span class="text-slate-400 font-light">vs</span> ${esc(m.opponent)}</div><div class="s">${esc(team.sport)}${m.priority === 'high' ? ' · 🔥 Choc' : ''}</div></div></td>
+                                        <td data-label="Lieu"><div class="cell-venue"><span class="loc ${isHome ? 'loc-home' : 'loc-away'}">${isHome ? 'Domicile' : 'Extérieur'}</span><span class="v text-slate-600 dark:text-slate-400" title="${esc(m.venue)}">${esc(m.venue) || '-'}</span></div></td>
+                                        <td data-label="Statut"><div class="cell-status">${getStatusBadgeHTML(m.accredStatus)}</div></td>
+                                        <td data-label="Actions"><div class="cell-actions">
+                                            <button onclick="openEmailModal('${m.id}')" class="ibtn mail" title="Générer un mail"><i data-lucide="mail" class="w-4 h-4"></i></button>
+                                            <button onclick="openEditMatchModal('${m.id}')" class="ibtn" title="Modifier"><i data-lucide="edit-2" class="w-4 h-4"></i></button>
+                                            <button onclick="deleteMatch('${m.id}')" class="ibtn danger" title="Supprimer"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                                        </div></td>
+                                    </tr>`;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function createMatchCardHTML(m) {
+            const team = getTeamById(m.myTeamId);
+            const isHome = m.location === 'home';
+            const pressEmail = m.pressEmail || team.contactEmail;
+            const status = m.accredStatus || 'todo';
+            const dots = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>';
+
+            const logoHTML = team.logoUrl
+                ? `<img src="${esc(team.logoUrl)}" alt="" class="w-10 h-10 object-contain rounded-xl bg-slate-100 dark:bg-slate-800 p-0.5 border border-slate-200 dark:border-slate-700 flex-shrink-0" onerror="this.style.display='none'">`
+                : `<div class="w-10 h-10 rounded-xl bg-brand-500/10 text-brand-500 flex items-center justify-center font-bold text-sm flex-shrink-0 border border-brand-500/20">${esc(team.name.charAt(0))}</div>`;
+
+            return `
+                <div class="gcard gcard--${status} bg-white/90 dark:bg-slate-900/80 text-slate-800 dark:text-slate-100">
+                    <div class="gcard-head">
+                        <div class="gcard-id">
+                            ${logoHTML}
+                            <div class="min-w-0">
+                                <div class="text-[11px] font-medium text-slate-400">${esc(team.sport)}</div>
+                                <h3 class="gcard-title">${esc(team.name)} <span class="text-slate-400 font-light text-xs">vs</span> <span class="text-brand-600 dark:text-brand-300">${esc(m.opponent)}</span></h3>
+                            </div>
+                        </div>
+                        ${getStatusBadgeHTML(status)}
+                    </div>
+
+                    <div class="gcard-meta">
+                        <span class="px-2.5 py-1 rounded-lg font-bold ${isHome ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border border-indigo-500/20' : 'bg-purple-500/10 text-purple-600 dark:text-purple-300 border border-purple-500/20'}">${isHome ? '🏠 DOMICILE' : '✈️ EXTÉRIEUR'}</span>
+                        <span class="text-slate-500 dark:text-slate-400 font-medium inline-flex items-center gap-1"><i data-lucide="clock" class="w-3.5 h-3.5"></i>${formatFrenchDate(m.date)} · <strong class="text-slate-900 dark:text-slate-200">${esc(m.time)}</strong></span>
+                        ${m.priority === 'high' ? '<span class="px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold">🔥 Choc</span>' : ''}
+                    </div>
+
+                    <div class="gcard-line text-slate-500 dark:text-slate-400"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i><span>${esc(m.venue) || 'Stade / Terrain non spécifié'}</span></div>
+                    ${m.notes ? `<div class="gcard-line text-slate-600 dark:text-slate-400"><i data-lucide="file-text" class="w-3.5 h-3.5"></i><span>${esc(m.notes)}</span></div>` : ''}
+                    ${pressEmail ? `<div class="gcard-line text-slate-400"><i data-lucide="at-sign" class="w-3.5 h-3.5"></i><a href="mailto:${esc(pressEmail)}" class="text-slate-600 dark:text-slate-300 hover:text-brand-500 underline font-mono">${esc(pressEmail)}</a></div>` : ''}
+
+                    <div class="gcard-foot">
+                        <button type="button" onclick="openEmailModal('${m.id}')" class="gbtn btn-primary"><i data-lucide="mail" class="w-3.5 h-3.5"></i> Mail accréditation</button>
+                        <select onchange="quickUpdateAccredStatus('${m.id}', this.value)" class="gsel" aria-label="Statut de l'accréditation">
+                            <option value="todo" ${status === 'todo' ? 'selected' : ''}>🔴 Non demandée</option>
+                            <option value="pending" ${status === 'pending' ? 'selected' : ''}>🟡 Demande envoyée</option>
+                            <option value="approved" ${status === 'approved' ? 'selected' : ''}>🟢 Validée</option>
+                            <option value="rejected" ${status === 'rejected' ? 'selected' : ''}>⚪ Refusée</option>
+                        </select>
+                        <details class="gmenu">
+                            <summary title="Plus d'actions" aria-label="Plus d'actions">${dots}</summary>
+                            <div class="gmenu-pop">
+                                <button type="button" onclick="this.closest('details').removeAttribute('open'); openEditMatchModal('${m.id}')"><i data-lucide="edit-2" class="w-4 h-4"></i> Modifier</button>
+                                <button type="button" class="is-danger" onclick="this.closest('details').removeAttribute('open'); deleteMatch('${m.id}')"><i data-lucide="trash-2" class="w-4 h-4"></i> Supprimer</button>
+                            </div>
+                        </details>
+                    </div>
+                </div>
+            `;
+        }
+
+        /* ----------------------------------------------------
+           TEAMS RENDER & LOGO LOGIC
+        ---------------------------------------------------- */
+        function renderTeamsList() {
+            const container = document.getElementById('teams-grid-list');
+            
+            if (teams.length === 0) {
+                container.innerHTML = `
+                    <div class="col-span-full bg-white/90 dark:bg-slate-900/80 shadow-xl border border-slate-200 dark:border-slate-800 rounded-3xl p-8 text-center text-slate-500 space-y-2">
+                        <i data-lucide="shield-off" class="w-8 h-8 mx-auto text-slate-400"></i>
+                        <p class="text-xs font-medium">Aucune équipe configurée.</p>
+                        <button onclick="openTeamModal()" class="text-xs text-brand-500 hover:underline">Ajouter votre première équipe</button>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = teams.map(t => {
+                const teamMatches = matches.filter(m => m.myTeamId === t.id);
+                const logoHTML = t.logoUrl 
+                    ? `<img src="${t.logoUrl}" alt="${t.name}" class="w-10 h-10 object-contain rounded-xl bg-slate-100 dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700" onerror="this.style.display='none'">`
+                    : `<div class="w-10 h-10 rounded-xl bg-brand-500/10 text-brand-500 flex items-center justify-center font-bold text-sm border border-brand-500/20">${t.name.charAt(0)}</div>`;
+
+                const venuesDisplay = t.venues && t.venues.length > 0 ? t.venues.join(', ') : 'Aucun stade configuré';
+
+                return `
+                    <div class="bg-white/90 dark:bg-slate-900/80 shadow-xl border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 rounded-3xl p-5 transition shadow-sm space-y-3 flex flex-col justify-between">
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-3">
+                                    ${logoHTML}
+                                    <div>
+                                        <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-500/20">
+                                            ${t.sport}
+                                        </span>
+                                        <h3 class="text-lg font-bold text-slate-900 dark:text-white mt-0.5">${t.name}</h3>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-1">
+                                    <button onclick="openEditTeamModal('${t.id}')" class="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg transition">
+                                        <i data-lucide="edit-2" class="w-4 h-4"></i>
+                                    </button>
+                                    <button onclick="deleteTeam('${t.id}')" class="p-1 hover:bg-rose-500/10 text-slate-400 hover:text-rose-500 rounded-lg transition">
+                                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="space-y-1.5 text-xs text-slate-600 dark:text-slate-300">
+                                ${t.defaultVenue ? `<p class="flex items-center gap-2"><i data-lucide="map-pin" class="w-3.5 h-3.5 text-brand-500"></i> Stade par défaut : <strong class="text-slate-800 dark:text-slate-200">${t.defaultVenue}</strong></p>` : ''}
+                                ${t.contactName ? `<p class="flex items-center gap-2"><i data-lucide="user" class="w-3.5 h-3.5 text-slate-400"></i> Contact : ${t.contactName}</p>` : ''}
+                                <p class="flex items-center gap-2">
+                                    <i data-lucide="mail" class="w-3.5 h-3.5 text-slate-400"></i> 
+                                    <a href="mailto:${t.contactEmail}" class="text-brand-600 dark:text-brand-400 hover:underline font-mono">${t.contactEmail}</a>
+                                </p>
+                            </div>
+
+                            ${t.notes ? `
+                                <div class="bg-slate-50 dark:bg-slate-950 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
+                                    <p class="font-semibold text-slate-700 dark:text-slate-300 mb-0.5">Procédure & Accès :</p>
+                                    <p>${t.notes}</p>
+                                </div>
+                            ` : ''}
+                        </div>
+
+                        <div class="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500">
+                            <span>${teamMatches.length} match(s) dans le calendrier</span>
+                            <button onclick="filterByTeam('${t.id}')" class="text-brand-600 dark:text-brand-400 hover:underline font-semibold text-[11px]">Voir les matchs</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function populateTeamSelectOptions() {
+            const selectMatch = document.getElementById('match-my-team');
+            const selectFilter = document.getElementById('filter-team');
+
+            if (selectMatch) {
+                const currentVal = selectMatch.value;
+                selectMatch.innerHTML = '<option value="">Sélectionner une équipe...</option>' + 
+                    teams.map(t => `<option value="${t.id}">${t.name} (${t.sport})</option>`).join('');
+                selectMatch.value = currentVal;
+            }
+
+            if (selectFilter) {
+                const currentVal = selectFilter.value;
+                selectFilter.innerHTML = '<option value="all">Toutes les équipes</option>' + 
+                    teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+                selectFilter.value = currentVal;
+            }
+        }
+
+        /* ----------------------------------------------------
+           TEAM STADIUMS & LOGO UPLOAD LOGIC
+        ---------------------------------------------------- */
+        function handleLogoFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const dataUrl = e.target.result;
+                document.getElementById('team-logo-url').value = dataUrl;
+                updateTeamLogoPreview();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function updateTeamLogoPreview() {
+            const url = document.getElementById('team-logo-url').value.trim();
+            const previewBox = document.getElementById('team-logo-preview-box');
+
+            if (url) {
+                previewBox.innerHTML = `<img src="${url}" class="w-full h-full object-contain p-1" onerror="this.src=''">`;
+            } else {
+                previewBox.innerHTML = `<i data-lucide="shield" class="w-6 h-6"></i>`;
+                initLucideIcons();
+            }
+        }
+
+        /* ----------------------------------------------------
+           MATCH CREATION & AUTO-FILL VENUE LOGIC
+        ---------------------------------------------------- */
+        function onMatchTeamChange() {
+            const teamId = document.getElementById('match-my-team').value;
+            const team = teams.find(t => t.id === teamId);
+            const location = document.getElementById('match-location').value;
+            const pressEmailInput = document.getElementById('match-press-email');
+            const venueInput = document.getElementById('match-venue');
+
+            if (team) {
+                if (team.contactEmail && !pressEmailInput.value) {
+                    pressEmailInput.value = team.contactEmail;
+                }
+                
+                updateVenueSuggestionsForTeam(team);
+
+                if (location === 'home' && team.defaultVenue) {
+                    venueInput.value = team.defaultVenue;
+                    document.getElementById('match-venue-hint').textContent = 'Stade par défaut appliqué !';
+                } else if (location === 'home' && team.venues && team.venues.length > 0) {
+                    venueInput.value = team.venues[0];
+                }
+            }
+        }
+
+        function onMatchLocationChange() {
+            const teamId = document.getElementById('match-my-team').value;
+            const team = teams.find(t => t.id === teamId);
+            const location = document.getElementById('match-location').value;
+            const venueInput = document.getElementById('match-venue');
+
+            if (location === 'home' && team) {
+                if (team.defaultVenue) {
+                    venueInput.value = team.defaultVenue;
+                    document.getElementById('match-venue-hint').textContent = 'Stade par défaut appliqué !';
+                }
+            } else {
+                document.getElementById('match-venue-hint').textContent = '';
+            }
+        }
+
+        function updateVenueSuggestionsForTeam(team) {
+            const datalist = document.getElementById('match-venue-suggestions');
+            if (!datalist) return;
+
+            const venuesList = team.venues || [];
+            datalist.innerHTML = venuesList.map(v => `<option value="${v}">`).join('');
+        }
+
+        /* ----------------------------------------------------
+           MATCH FORM HANDLERS
+        ---------------------------------------------------- */
+        function openNewMatchModal() {
+            document.getElementById('match-form').reset();
+            document.getElementById('match-id').value = '';
+            document.getElementById('match-modal-title').innerHTML = '<i data-lucide="calendar-plus" class="w-5 h-5 text-brand-500"></i> Ajouter un Match';
+            document.getElementById('match-venue-hint').textContent = '';
+            
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('match-date').value = today;
+            document.getElementById('match-time').value = "20:00";
+
+            document.getElementById('match-modal').classList.remove('hidden');
+            initLucideIcons();
+        }
+
+        function openEditMatchModal(matchId) {
+            const m = matches.find(x => x.id === matchId);
+            if (!m) return;
+
+            document.getElementById('match-id').value = m.id;
+            document.getElementById('match-my-team').value = m.myTeamId;
+            document.getElementById('match-opponent').value = m.opponent;
+            document.getElementById('match-date').value = m.date;
+            document.getElementById('match-time').value = m.time;
+            document.getElementById('match-location').value = m.location;
+            document.getElementById('match-venue').value = m.venue || '';
+            document.getElementById('match-priority').value = m.priority || 'medium';
+            document.getElementById('match-accred-status').value = m.accredStatus || 'todo';
+            document.getElementById('match-press-email').value = m.pressEmail || '';
+            document.getElementById('match-notes').value = m.notes || '';
+
+            const team = teams.find(t => t.id === m.myTeamId);
+            if (team) updateVenueSuggestionsForTeam(team);
+
+            document.getElementById('match-modal-title').innerHTML = '<i data-lucide="edit" class="w-5 h-5 text-brand-500"></i> Modifier le Match';
+            document.getElementById('match-modal').classList.remove('hidden');
+            initLucideIcons();
+        }
+
+        function closeMatchModal() {
+            document.getElementById('match-modal').classList.add('hidden');
+        }
+
+        function handleMatchSubmit(e) {
+            e.preventDefault();
+            const id = document.getElementById('match-id').value;
+            
+            const matchData = {
+                id: id || 'match_' + Date.now(),
+                myTeamId: document.getElementById('match-my-team').value,
+                opponent: document.getElementById('match-opponent').value.trim(),
+                date: document.getElementById('match-date').value,
+                time: document.getElementById('match-time').value,
+                location: document.getElementById('match-location').value,
+                venue: document.getElementById('match-venue').value.trim(),
+                priority: document.getElementById('match-priority').value,
+                accredStatus: document.getElementById('match-accred-status').value,
+                pressEmail: document.getElementById('match-press-email').value.trim(),
+                notes: document.getElementById('match-notes').value.trim()
+            };
+
+            if (id) {
+                const index = matches.findIndex(m => m.id === id);
+                if (index !== -1) matches[index] = matchData;
+            } else {
+                matches.push(matchData);
+            }
+
+            saveToStorage();
+            closeMatchModal();
+            renderAll();
+            showToast(id ? 'Match mis à jour !' : 'Nouveau match ajouté !');
+        }
+
+        function deleteMatch(matchId) {
+            if (confirm('Supprimer ce match ?')) {
+                matches = matches.filter(m => m.id !== matchId);
+                saveToStorage();
+                renderAll();
+                showToast('Match supprimé');
+            }
+        }
+
+        function quickUpdateAccredStatus(matchId, newStatus) {
+            const m = matches.find(x => x.id === matchId);
+            if (m) {
+                m.accredStatus = newStatus;
+                saveToStorage();
+                renderAll();
+                showToast(`Statut mis à jour`);
+            }
+        }
+
+        /* ----------------------------------------------------
+           TEAM FORM LOGIC
+        ---------------------------------------------------- */
+        function openTeamModal() {
+            document.getElementById('team-form').reset();
+            document.getElementById('team-id').value = '';
+            document.getElementById('team-logo-url').value = '';
+            updateTeamLogoPreview();
+
+            document.getElementById('team-modal-title').innerHTML = '<i data-lucide="shield-plus" class="w-5 h-5 text-brand-500"></i> Ajouter une Équipe';
+            document.getElementById('team-modal').classList.remove('hidden');
+            initLucideIcons();
+        }
+
+        function openEditTeamModal(teamId) {
+            const t = teams.find(x => x.id === teamId);
+            if (!t) return;
+
+            document.getElementById('team-id').value = t.id;
+            document.getElementById('team-name').value = t.name;
+            document.getElementById('team-sport').value = t.sport;
+            document.getElementById('team-logo-url').value = t.logoUrl || '';
+            document.getElementById('team-venues-list').value = t.venues ? t.venues.join(', ') : '';
+            document.getElementById('team-default-venue').value = t.defaultVenue || '';
+            document.getElementById('team-contact-name').value = t.contactName || '';
+            document.getElementById('team-contact-email').value = t.contactEmail;
+            document.getElementById('team-notes').value = t.notes || '';
+
+            updateTeamLogoPreview();
+            document.getElementById('team-modal-title').innerHTML = '<i data-lucide="edit" class="w-5 h-5 text-brand-500"></i> Modifier l\'Équipe';
+            document.getElementById('team-modal').classList.remove('hidden');
+            initLucideIcons();
+        }
+
+        function closeTeamModal() {
+            document.getElementById('team-modal').classList.add('hidden');
+        }
+
+        function handleTeamSubmit(e) {
+            e.preventDefault();
+            const id = document.getElementById('team-id').value;
+
+            const rawVenues = document.getElementById('team-venues-list').value;
+            const venuesArray = rawVenues.split(',').map(v => v.trim()).filter(v => v.length > 0);
+
+            const teamData = {
+                id: id || 'team_' + Date.now(),
+                name: document.getElementById('team-name').value.trim(),
+                sport: document.getElementById('team-sport').value,
+                logoUrl: document.getElementById('team-logo-url').value.trim(),
+                venues: venuesArray,
+                defaultVenue: document.getElementById('team-default-venue').value.trim() || (venuesArray[0] || ''),
+                contactName: document.getElementById('team-contact-name').value.trim(),
+                contactEmail: document.getElementById('team-contact-email').value.trim(),
+                notes: document.getElementById('team-notes').value.trim()
+            };
+
+            if (id) {
+                const index = teams.findIndex(t => t.id === id);
+                if (index !== -1) teams[index] = teamData;
+            } else {
+                teams.push(teamData);
+            }
+
+            saveToStorage();
+            closeTeamModal();
+            renderAll();
+            showToast(id ? 'Équipe modifiée !' : 'Nouvelle équipe ajoutée !');
+        }
+
+        function deleteTeam(teamId) {
+            if (confirm('Voulez-vous supprimer cette équipe ?')) {
+                teams = teams.filter(t => t.id !== teamId);
+                saveToStorage();
+                renderAll();
+                showToast('Équipe supprimée');
+            }
+        }
+
+        /* ----------------------------------------------------
+           MULTIPLE EMAIL TEMPLATES & GENERATOR LOGIC
+        ---------------------------------------------------- */
+        function openEmailModal(matchId) {
+            const m = matches.find(x => x.id === matchId);
+            if (!m) return;
+
+            currentEmailMatchId = matchId;
+            populateEmailTemplatesDropdown();
+            generateEmailContentFromTemplate();
+
+            document.getElementById('email-modal').classList.remove('hidden');
+            initLucideIcons();
+        }
+
+        function populateEmailTemplatesDropdown() {
+            const select = document.getElementById('email-template-select');
+            select.innerHTML = templates.map(tpl => `<option value="${tpl.id}">${tpl.name}</option>`).join('');
+        }
+
+        function onTemplateSelectionChange() {
+            generateEmailContentFromTemplate();
+        }
+
+        function generateEmailContentFromTemplate() {
+            if (!currentEmailMatchId) return;
+
+            const m = matches.find(x => x.id === currentEmailMatchId);
+            if (!m) return;
+
+            const team = getTeamById(m.myTeamId);
+            const templateId = document.getElementById('email-template-select').value;
+            const template = templates.find(t => t.id === templateId) || templates[0];
+
+            const toEmail = m.pressEmail || team.contactEmail || 'presse@club.com';
+            const formattedDate = formatFrenchDate(m.date);
+            const venue = m.venue || (m.location === 'home' ? 'Match à domicile' : 'Match à l\'extérieur');
+
+            const replaceVars = (text) => {
+                return text
+                    .replace(/\{equipe\}/g, team.name)
+                    .replace(/\{adversaire\}/g, m.opponent)
+                    .replace(/\{sport\}/g, team.sport)
+                    .replace(/\{date\}/g, formattedDate)
+                    .replace(/\{heure\}/g, m.time)
+                    .replace(/\{lieu\}/g, venue)
+                    .replace(/\{nom_photo\}/g, profile.name || '[Votre Nom]')
+                    .replace(/\{media_photo\}/g, profile.media || '[Votre Média]')
+                    .replace(/\{carte_photo\}/g, profile.card || '[Carte de Presse]')
+                    .replace(/\{tel_photo\}/g, profile.phone || '[Téléphone]');
+            };
+
+            const subject = replaceVars(template.subject);
+            const body = replaceVars(template.body);
+
+            document.getElementById('email-modal-to').textContent = toEmail;
+            document.getElementById('email-modal-subject').textContent = subject;
+            document.getElementById('email-modal-body').value = body;
+
+            const mailtoUrl = `mailto:${encodeURIComponent(toEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+            document.getElementById('email-modal-mailto-btn').href = mailtoUrl;
+        }
+
+        function closeEmailModal() {
+            document.getElementById('email-modal').classList.add('hidden');
+            currentEmailMatchId = null;
+        }
+
+        function copyEmailToClipboard() {
+            const bodyText = document.getElementById('email-modal-body').value;
+            const tempElem = document.createElement('textarea');
+            tempElem.value = bodyText;
+            document.body.appendChild(tempElem);
+            tempElem.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempElem);
+
+            showToast('Texte du mail copié !');
+        }
+
+        function markAsPendingAfterMail() {
+            if (currentEmailMatchId) {
+                const m = matches.find(x => x.id === currentEmailMatchId);
+                if (m && m.accredStatus === 'todo') {
+                    m.accredStatus = 'pending';
+                    saveToStorage();
+                    renderAll();
+                }
+            }
+            closeEmailModal();
+        }
+
+        /* ----------------------------------------------------
+           SETTINGS & TEMPLATES EDITOR LOGIC
+        ---------------------------------------------------- */
+        function openSettingsModal() {
+            document.getElementById('setting-photo-name').value = profile.name || '';
+            document.getElementById('setting-photo-media').value = profile.media || '';
+            document.getElementById('setting-photo-phone').value = profile.phone || '';
+            document.getElementById('setting-photo-card').value = profile.card || '';
+
+            renderTemplatesEditorList();
+
+            document.getElementById('settings-modal').classList.remove('hidden');
+            initLucideIcons();
+        }
+
+        function closeSettingsModal() {
+            document.getElementById('settings-modal').classList.add('hidden');
+        }
+
+        function saveProfileSettings() {
+            profile = {
+                name: document.getElementById('setting-photo-name').value.trim(),
+                media: document.getElementById('setting-photo-media').value.trim(),
+                phone: document.getElementById('setting-photo-phone').value.trim(),
+                card: document.getElementById('setting-photo-card').value.trim()
+            };
+
+            saveToStorage();
+            updateProfileSummaryDisplay();
+            showToast('Profil enregistré !');
+        }
+
+        function updateProfileSummaryDisplay() {
+            document.getElementById('profile-summary-name').textContent = profile.name || 'Non configuré';
+            document.getElementById('profile-summary-media').textContent = profile.media || 'Presse / Indépendant';
+        }
+
+        function renderTemplatesEditorList() {
+            const container = document.getElementById('templates-editor-list');
+            container.innerHTML = templates.map((tpl, idx) => `
+                <div class="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <input type="text" value="${tpl.name}" onchange="updateTemplateField('${tpl.id}', 'name', this.value)" placeholder="Nom du modèle" class="font-bold bg-white/90 dark:bg-slate-900/80 shadow-xl border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1 text-slate-900 dark:text-slate-100 text-xs w-2/3 focus:border-brand-500 focus:outline-none">
+                        ${templates.length > 1 ? `
+                            <button onclick="deleteEmailTemplate('${tpl.id}')" class="text-rose-500 hover:text-rose-600 p-1" title="Supprimer ce modèle">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] text-slate-500 mb-0.5 font-medium">Sujet du mail</label>
+                        <input type="text" value="${tpl.subject}" onchange="updateTemplateField('${tpl.id}', 'subject', this.value)" class="w-full bg-white/90 dark:bg-slate-900/80 shadow-xl border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1 font-mono text-[11px] text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] text-slate-500 mb-0.5 font-medium">Corps du message</label>
+                        <textarea rows="5" onchange="updateTemplateField('${tpl.id}', 'body', this.value)" class="w-full bg-white/90 dark:bg-slate-900/80 shadow-xl border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 font-mono text-[11px] text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:outline-none leading-relaxed">${tpl.body}</textarea>
+                    </div>
+                </div>
+            `).join('');
+
+            initLucideIcons();
+        }
+
+        function updateTemplateField(tplId, field, value) {
+            const tpl = templates.find(t => t.id === tplId);
+            if (tpl) {
+                tpl[field] = value;
+                saveToStorage();
+                showToast('Modèle mis à jour !');
+            }
+        }
+
+        function addNewEmailTemplate() {
+            const newTpl = {
+                id: 'tpl_' + Date.now(),
+                name: 'Nouveau Modèle',
+                subject: 'Demande d\'accréditation photo - {equipe} vs {adversaire}',
+                body: `Bonjour,\n\nJe souhaite demander une accréditation photo pour {equipe} vs {adversaire} le {date}.\n\nCordialement,\n{nom_photo}`
+            };
+            templates.push(newTpl);
+            saveToStorage();
+            renderTemplatesEditorList();
+            showToast('Nouveau modèle créé !');
+        }
+
+        function deleteEmailTemplate(tplId) {
+            if (templates.length <= 1) return;
+            templates = templates.filter(t => t.id !== tplId);
+            saveToStorage();
+            renderTemplatesEditorList();
+            showToast('Modèle supprimé');
+        }
+
+        /* ----------------------------------------------------
+           EXPORT / IMPORT & RESET
+        ---------------------------------------------------- */
+        function exportDataJSON() {
+            const data = {
+                teams,
+                matches,
+                profile,
+                templates,
+                exportDate: new Date().toISOString()
+            };
+
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `sportlens_backup_${new Date().toISOString().split('T')[0]}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+
+            showToast('Exportation réussie !');
+        }
+
+        function importDataJSON(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (imported.teams && imported.matches) {
+                        teams = imported.teams;
+                        matches = imported.matches;
+                        if (imported.profile) profile = imported.profile;
+                        if (imported.templates) templates = imported.templates;
+
+                        saveToStorage();
+                        renderAll();
+                        closeSettingsModal();
+                        showToast('Données importées avec succès !');
+                    } else {
+                        alert('Format de fichier JSON non valide.');
+                    }
+                } catch (err) {
+                    alert('Erreur lors de la lecture du fichier JSON.');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function resetToDemoData() {
+            if (confirm('Voulez-vous réinitialiser l\'application avec les données de démonstration ?')) {
+                teams = DEMO_TEAMS;
+                matches = DEMO_MATCHES;
+                profile = DEFAULT_PROFILE;
+                templates = DEFAULT_TEMPLATES;
+                saveToStorage();
+                renderAll();
+                closeSettingsModal();
+                showToast('Données réinitialisées !');
+            }
+        }
+
+        /* ----------------------------------------------------
+           FILTERING & TOAST NOTIFICATIONS
+        ---------------------------------------------------- */
+        function applyFilters() {
+            renderAllMatchesList();
+        }
+
+        function filterByAccred(status) {
+            switchTab('matches');
+            document.getElementById('filter-status').value = status;
+            applyFilters();
+        }
+
+        function filterByTeam(teamId) {
+            switchTab('matches');
+            document.getElementById('filter-team').value = teamId;
+            applyFilters();
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast-notification');
+            document.getElementById('toast-message').textContent = message;
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
